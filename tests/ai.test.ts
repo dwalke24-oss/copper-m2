@@ -8,7 +8,7 @@ import {
   callText,
   isAiConfigured,
 } from "@/lib/ai/call";
-import { MODELS } from "@/lib/ai/models";
+import { DEFAULT_MODEL, defaultModel, MODELS } from "@/lib/ai/models";
 import { costUsd, PRICING } from "@/lib/ai/pricing";
 
 // Google hands back whatever mock model the test sets.
@@ -65,6 +65,20 @@ describe("pricing", () => {
       0.0008,
       9,
     );
+  });
+});
+
+describe("defaultModel", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("uses Gemini 3.5 Flash-Lite when AI_MODEL names it", () => {
+    vi.stubEnv("AI_MODEL", "google/gemini-3.5-flash-lite");
+    expect(defaultModel()).toBe("google/gemini-3.5-flash-lite");
+  });
+
+  it("falls back to the default when AI_MODEL isn't an approved model", () => {
+    vi.stubEnv("AI_MODEL", "google/not-a-model");
+    expect(defaultModel()).toBe(DEFAULT_MODEL);
   });
 });
 
