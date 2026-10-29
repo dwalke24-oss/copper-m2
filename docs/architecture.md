@@ -82,3 +82,40 @@ When a module changes how the app fits together, add a section here:
 **Risks and open questions:** cost, privacy, accuracy or safety risks, and how
 you handle them.
 ```
+
+## Module 2: Ask Copper
+
+**Summary:** A floating chat panel that answers price, cost and stock
+questions by calling four read-only tools instead of guessing, and shows each
+step (thinking, tool calls, reply) as it streams in.
+
+| Piece | Where | What it does |
+|---|---|---|
+| Page / route | `app/page.tsx` | Mounts `<AskCopper />` and passes `isAiConfigured()` down. No new pages or routes |
+| Components | `components/copper/ask-copper.tsx`, `components/copper/ask-copper-answer.tsx` | The launcher, the panel with its two chats (tools on and off), and each answer drawn as stations on a rail with a card per tool call |
+| Tools | `lib/copper/assistant/tools.ts` | `get_products`, `get_prices`, `calculate_cost`, `check_availability`, each with a zod input contract. Prices come from the catalog; stock comes from `readInventory()` on every call |
+| Instructions | `lib/copper/assistant/instructions.ts` | `COPPER_INSTRUCTIONS`, sent only when tools are on |
+| Server Action | `lib/copper/assistant/ask.ts` | `askCopper({ messages, useTools })` returns a live `Progress` right away and fills it from the model's stream |
+| Data | `lib/copper/data/inventory.json` | The stock list, read through `lib/copper/inventory.ts` |
+| AI calls | `callStream` (module 2, `ask-copper`) | The default Gemini model, with thought summaries and up to 5 steps. Roughly $0.002–$0.005 per question with tools (two model steps, about 1,024 thinking tokens) |
+
+**Data flow:** shopper asks a question → `AskCopper` sends that chat's history
+to `askCopper()` → `callStream` → the model calls tools, which read the
+catalog and stock list → each stream part updates the `Progress` → the panel
+redraws from every update.
+
+**Decisions and trade-offs:**
+- Tools on and off are separate chats, so the tools-off model can't copy an
+  answer the tools worked out.
+- With tools off, no instructions are sent at all: telling a model to use tools
+  it doesn't have makes it return nothing.
+- Each update is a fresh copy of the whole `Progress`, so a missed or held
+  update never goes stale.
+- The answer renders markdown with `Streamdown` (the renderer under AI
+  Elements' `MessageResponse`) without its Mermaid, KaTeX and code plugins,
+  which are heavy and not needed for short shopping answers.
+
+**Risks and open questions:** the tools only read, so the model can't change
+anything. The tools-off chat can and does invent prices; it is labeled
+"Answered without tools: may be made up". If stock can't be read, Copper says
+so rather than reporting a stock level.
